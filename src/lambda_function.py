@@ -127,7 +127,15 @@ def handle_session_end_request():
 
 
 def handle_help_request():
-    pass
+    session_attributes = {}
+    card_title = "Remembrall"
+    speech_output = "Welcome to the Alexa Remembrall skill. " \
+                    "You can store information about items you handle " \
+                    "Or you can ask me for information about items already you stored"
+    reprompt_text = "Please ask me for information about items about u previously stored"
+    should_end_session = False
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
 
 
 def table_write(request, session):
