@@ -3,6 +3,7 @@ import json
 import decimal
 from datetime import datetime
 import inflect
+from boto3.dynamodb.conditions import Key, Attr
 
 
 inflect = inflect.engine()
@@ -34,6 +35,8 @@ def intent_handler(request_info, session_info):
         return store_intent_handler(request_info, session_info)
     elif request_info['intent']['name'] == 'ContinueIntent':
         return continue_intent_handler(request_info, session_info)
+    elif request_info['intent']['name'] == 'RetrieveIntent':
+        return retrieve_intent_handler(request_info, session_info)
 
 
 def store_intent_handler(request_info, session_info):
@@ -64,6 +67,34 @@ def continue_intent_handler(request_info, session_info):
         store_intent_handler(request_info, session_info)
 
 
+def retrieve_intent_handler(request_info, session_info):
+    item = table_read(request_info, session_info)
+    if(len(item) != 0):
+        item = item[0]
+        if (item['itemBool']):
+            session_attributes = {}
+            card_title = "Remembrall"
+            speech_output = "It is " + item['location'] + '...Do you want to find anything else?'
+            reprompt_text = ""
+            should_end_session = False
+        else:
+            session_attributes = {}
+            card_title = "Remembrall"
+            speech_output = 'They are '  + item['location'] + ' <break time="2s"/> Do you want to find anything else?'
+            reprompt_text = ""
+            should_end_session = False
+        return build_response(session_attributes, build_speechlet_response(
+                card_title, speech_output, reprompt_text, should_end_session))
+    else:
+        session_attributes = {}
+        card_title = "Remembrall"
+        speech_output = 'Sorry, I do not have any details about it ' + ' <break time="2s"/> Do you want to find anything else?'
+        reprompt_text = ""
+        should_end_session = False
+        return build_response(session_attributes, build_speechlet_response(
+                card_title, speech_output, reprompt_text, should_end_session))
+
+
 def table_write(request, session):
     # items is false item is true
     bool = False
@@ -80,6 +111,13 @@ def table_write(request, session):
             'loggedDate': str(datetime.utcnow().date())
         }
     )
+
+
+def table_read(request, session):
+    item = request['intent']['slots']['item']['value']
+    response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId']) & Attr('itemName').eq(item))
+    item = response['Items']
+    return(item)
 
 
 def build_speechlet_response(title, output, reprompt_text, should_end_session):
