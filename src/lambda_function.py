@@ -16,6 +16,8 @@ def lambda_handler(event, context):
         return launch_request_handler(event['request'], event['session'])
     elif event['request']['type'] == 'IntentRequest':
         return intent_handler(event['request'], event['session'])
+    elif event['request']['type'] == 'SessionEndedRequest':
+        return handle_session_end_request()
 
 
 def launch_request_handler(request_info, session_info):
@@ -37,6 +39,10 @@ def intent_handler(request_info, session_info):
         return continue_intent_handler(request_info, session_info)
     elif request_info['intent']['name'] == 'RetrieveIntent':
         return retrieve_intent_handler(request_info, session_info)
+    elif request_info['intent']['name'] == 'AMAZON.HelpIntent' :
+        return handle_help_request()
+    elif request_info['intent']['name'] == 'AMAZON.CancelIntent' or request_info['intent']['name'] == 'AMAZON.StopIntent':
+        return handle_session_end_request()
 
 
 def store_intent_handler(request_info, session_info):
@@ -55,44 +61,73 @@ def continue_intent_handler(request_info, session_info):
     # ContinueIntent handler
     try:
         request_info['intent']['slots']['false']['value']
-        session_attributes = {}
-        card_title = "Remembrall"
-        speech_output = "Bye"
-        reprompt_text = ""
-        should_end_session = True
-        return build_response(session_attributes, build_speechlet_response(
-            card_title, speech_output, reprompt_text, should_end_session))
+        return handle_session_end_request()
     except:
         request_info['intent']['slots']['false']['value']
         store_intent_handler(request_info, session_info)
 
 
 def retrieve_intent_handler(request_info, session_info):
-    item = table_read(request_info, session_info)
-    if(len(item) != 0):
-        item = item[0]
-        if (item['itemBool']):
-            session_attributes = {}
-            card_title = "Remembrall"
-            speech_output = "It is " + item['location'] + '...Do you want to find anything else?'
-            reprompt_text = ""
-            should_end_session = False
+    try:
+        request['intent']['slots']['item']['value']
+        item = table_read_item(request_info, session_info)
+        if(len(item) != 0):
+            item = item[0]
+            if (item['itemBool']):
+                session_attributes = {}
+                card_title = "Remembrall"
+                speech_output = "It is " + item['location'] + '. Do you want to find anything else?'
+                reprompt_text = ""
+                should_end_session = False
+            else:
+                session_attributes = {}
+                card_title = "Remembrall"
+                speech_output = 'They are '  + item['location'] + ' .Do you want to find anything else?'
+                reprompt_text = ""
+                should_end_session = False
+            return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
         else:
             session_attributes = {}
             card_title = "Remembrall"
-            speech_output = 'They are '  + item['location'] + ' <break time="2s"/> Do you want to find anything else?'
+            speech_output = 'Sorry, I do not have any details about it ' + ' .Do you want to find anything else?'
             reprompt_text = ""
             should_end_session = False
-        return build_response(session_attributes, build_speechlet_response(
-                card_title, speech_output, reprompt_text, should_end_session))
-    else:
-        session_attributes = {}
-        card_title = "Remembrall"
-        speech_output = 'Sorry, I do not have any details about it ' + ' <break time="2s"/> Do you want to find anything else?'
-        reprompt_text = ""
-        should_end_session = False
-        return build_response(session_attributes, build_speechlet_response(
-                card_title, speech_output, reprompt_text, should_end_session))
+            return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
+    except:
+        item = table_read_location(request_info, session_info)
+        if(len(item) != 0):
+            session_attributes = {}
+            card_title = "Remembrall"
+            speech_output = 'The items list. '
+            for i in item :
+                speech_output += (i['itemName'] + '. ')
+            reprompt_text = ""
+            should_end_session = False
+            return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
+        else:
+            session_attributes = {}
+            card_title = "Remembrall"
+            speech_output = 'There is no information regarding the items ' + request_info['intent']['slots']['location']['value'] + ' .Do you want to find anything else?'
+            reprompt_text = ""
+            should_end_session = False
+            return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
+
+
+def handle_session_end_request():
+    session_attributes = {}
+    card_title = "Remembrall"
+    speech_output = 'Bye'
+    reprompt_text = ""
+    should_end_session = True
+    return build_response(session_attributes, build_speechlet_response(card_title, speech_output, reprompt_text, should_end_session))
+
+
+def handle_help_request():
+    pass
 
 
 def table_write(request, session):
@@ -103,7 +138,7 @@ def table_write(request, session):
         bool = True
     table.put_item(
         Item={
-            'userID': session['user']['userId'],
+            'userID': session['user']['userId'].split('.')[-1],
             'itemName': item,
             'itemBool': bool,
             'location': request['intent']['slots']['location']['value'],
@@ -113,9 +148,16 @@ def table_write(request, session):
     )
 
 
-def table_read(request, session):
+def table_read_item(request, session):
     item = request['intent']['slots']['item']['value']
-    response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId']) & Attr('itemName').eq(item))
+    response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId'].split('.')[-1]) & Attr('itemName').eq(item))
+    item = response['Items']
+    return(item)
+
+
+def table_read_location(request, session):
+    item = request['intent']['slots']['location']['value']
+    response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId'].split('.')[-1]) & Attr('location').eq(item))
     item = response['Items']
     return(item)
 
