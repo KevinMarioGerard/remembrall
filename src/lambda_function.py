@@ -179,7 +179,7 @@ def table_write(request, session):
             'itemName': item,
             'itemBool': bool,
             'location': location,
-            'loggedTime': str(datetime.utcnow().time())
+            'loggedTime': str(datetime.utcnow().time()),
             'loggedDate': str(datetime.utcnow().date())
         }
     )
