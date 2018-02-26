@@ -35,8 +35,10 @@ def intent_handler(request_info, session_info):
     # IntentRequest handler
     if request_info['intent']['name'] == 'StoreIntent':
         return store_intent_handler(request_info, session_info)
-    elif request_info['intent']['name'] == 'ContinueIntent':
-        return continue_intent_handler(request_info, session_info)
+    elif request_info['intent']['name'] == 'AMAZON.NoIntent':
+        return handle_session_end_request()
+    elif(request_info['intent']['name'] == 'AMAZON.YesIntent'):
+        return handle_yes_intent()
     elif request_info['intent']['name'] == 'RetrieveIntent':
         return retrieve_intent_handler(request_info, session_info)
     elif request_info['intent']['name'] == 'AMAZON.HelpIntent' :
@@ -69,7 +71,7 @@ def continue_intent_handler(request_info, session_info):
 
 def retrieve_intent_handler(request_info, session_info):
     try:
-        request['intent']['slots']['item']['value']
+        request_info['intent']['slots']['item']['value']
         item = table_read_item(request_info, session_info)
         if(len(item) != 0):
             item = item[0]
@@ -138,6 +140,15 @@ def handle_help_request():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
+def handle_yes_intent():
+    session_attributes = {}
+    card_title = "Remembrall"
+    speech_output = "What do you want to do?"
+    should_end_session = False
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+
+
 def table_write(request, session):
     # items is false item is true
     bool = False
@@ -164,10 +175,10 @@ def table_read_item(request, session):
 
 
 def table_read_location(request, session):
-    item = request['intent']['slots']['location']['value']
-    response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId'].split('.')[-1]) & Attr('location').eq(item))
-    item = response['Items']
-    return(item)
+        item = request['intent']['slots']['location']['value']
+        response = table.scan(FilterExpression=Attr('userID').eq(session['user']['userId'].split('.')[-1]) & Attr('location').eq(item))
+        item = response['Items']
+        return(item)
 
 
 def build_speechlet_response(title, output, reprompt_text, should_end_session):
