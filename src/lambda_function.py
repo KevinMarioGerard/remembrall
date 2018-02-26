@@ -54,6 +54,14 @@ def store_intent_handler(request_info, session_info):
     speech_output = "I have noted it down. Do you want me to note anything else"
     reprompt_text = ""
     should_end_session = False
+    try:
+        request_info['intent']['slots']['item']['value']
+    except:
+        return build_dialog_response("I am sorry. Can you repeat the item?", dialog_elicit_slot_item(request_info))
+    try:
+        request_info['intent']['slots']['location']['value']
+    except:
+        return build_dialog_response("I am sorry. Can you repeat the location?", dialog_elicit_slot_location(request_info))
     table_write(request_info, session_info)
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
@@ -143,7 +151,8 @@ def handle_help_request():
 def handle_yes_intent():
     session_attributes = {}
     card_title = "Remembrall"
-    speech_output = "What do you want to do?"
+    speech_output = "How can I help you further?"
+    reprompt_text = ""
     should_end_session = False
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
@@ -155,13 +164,22 @@ def table_write(request, session):
     item = request['intent']['slots']['item']['value']
     if inflect.singular_noun(item) is False:
         bool = True
+    location = request['intent']['slots']['location']['value']
+    loc = []
+    if 'my' in location.split(' '):
+        for i in location.split(' '):
+            if i != 'my':
+                loc.append(i)
+            else:
+                loc.append('your')
+        location = ' '.join(loc)
     table.put_item(
         Item={
             'userID': session['user']['userId'].split('.')[-1],
             'itemName': item,
             'itemBool': bool,
-            'location': request['intent']['slots']['location']['value'],
-            'loggedTime': str(datetime.utcnow().time()),
+            'location': location,
+            'loggedTime': str(datetime.utcnow().time())
             'loggedDate': str(datetime.utcnow().date())
         }
     )
@@ -204,10 +222,74 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
     }
 
 
+def dialog_elicit_slot_item(request):
+    return [
+                {
+                    "type": "Dialog.ElicitSlot",
+                    "slotToElicit": "item",
+                    "updatedIntent": {
+                        "name": "StoreIntent",
+                        "confirmaitonStatus": "NONE",
+                        "slots":{
+                            "location": {
+                                "name": "location",
+                                "value": request['intent']['slots']['location']['value'],
+                                "confirmaitonStatus": "NONE"
+                            },
+                            "item":{
+                                "name":"item",
+                                "confirmaitonStatus":"NONE"
+                            }
+                        }
+                    }
+                }
+            ]
+
+
+def dialog_elicit_slot_location(request):
+    return [
+                {
+                    "type": "Dialog.ElicitSlot",
+                    "slotToElicit": "location",
+                    "updatedIntent": {
+                        "name": "StoreIntent",
+                        "confirmaitonStatus": "NONE",
+                        "slots":{
+                            "item": {
+                                "name": "item",
+                                "value": request['intent']['slots']['item']['value'],
+                                "confirmaitonStatus": "NONE"
+                            },
+                            "location":{
+                                "name":"location",
+                                "confirmaitonStatus":"NONE"
+                            }
+                        }
+                    }
+                }
+            ]
+
+
 def build_response(session_attributes, speechlet_response):
     # returns the response json
     return {
         "version": "1.0",
         "sessionAttributes": session_attributes,
         "response": speechlet_response
+    }
+
+
+def build_dialog_response(output, directives):
+    # returns the response json
+    return {
+        "version": "1.0",
+        "sessionAttributes": {},
+        "response": {
+            "outputSpeech": {
+                "type": "PlainText",
+                "text": output
+            },
+            "shouldEndSession": False,
+            "directives": directives
+        }
     }
