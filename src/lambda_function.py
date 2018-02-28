@@ -24,7 +24,7 @@ def launch_request_handler(request_info, session_info):
     # LaunchIntent function
     session_attributes = {}
     card_title = "Remembrall"
-    speech_output = "Hi Welcome to Remembrall"
+    speech_output = "Hi Welcome to Remembrall. How can I be of help?"
     reprompt_text = ""
     should_end_session = False
     return build_response(session_attributes, build_speechlet_response(
@@ -39,8 +39,10 @@ def intent_handler(request_info, session_info):
         return handle_session_end_request()
     elif(request_info['intent']['name'] == 'AMAZON.YesIntent'):
         return handle_yes_intent()
-    elif request_info['intent']['name'] == 'RetrieveIntent':
-        return retrieve_intent_handler(request_info, session_info)
+    elif request_info['intent']['name'] == 'RetrieveItemIntent':
+        return retrieve_item_intent_handler(request_info, session_info)
+    elif request_info['intent']['name'] == 'RetrieveLocationIntent':
+        return retrieve_location_intent_handler(request_info, session_info)
     elif request_info['intent']['name'] == 'AMAZON.HelpIntent' :
         return handle_help_request()
     elif request_info['intent']['name'] == 'AMAZON.CancelIntent' or request_info['intent']['name'] == 'AMAZON.StopIntent':
@@ -77,7 +79,7 @@ def continue_intent_handler(request_info, session_info):
         store_intent_handler(request_info, session_info)
 
 
-def retrieve_intent_handler(request_info, session_info):
+def retrieve_item_intent_handler(request_info, session_info):
     try:
         request_info['intent']['slots']['item']['value']
         item = table_read_item(request_info, session_info)
@@ -106,6 +108,11 @@ def retrieve_intent_handler(request_info, session_info):
             return build_response(session_attributes, build_speechlet_response(
                     card_title, speech_output, reprompt_text, should_end_session))
     except:
+        return build_dialog_response("I am sorry. Can you repeat the item?", dialog_elicit_retrieve_item())
+
+
+def retrieve_location_intent_handler(request_info, session_info):
+    try:
         item = table_read_location(request_info, session_info)
         if(len(item) != 0):
             session_attributes = {}
@@ -113,6 +120,7 @@ def retrieve_intent_handler(request_info, session_info):
             speech_output = 'The items list. '
             for i in item :
                 speech_output += (i['itemName'] + '. ')
+            speech_output += '. Do you want to find anything else'
             reprompt_text = ""
             should_end_session = False
             return build_response(session_attributes, build_speechlet_response(
@@ -120,11 +128,13 @@ def retrieve_intent_handler(request_info, session_info):
         else:
             session_attributes = {}
             card_title = "Remembrall"
-            speech_output = 'There is no information regarding the items ' + request_info['intent']['slots']['location']['value'] + ' .Do you want to find anything else?'
+            speech_output = 'There is no item in the specified location .Do you want to find anything else?'
             reprompt_text = ""
             should_end_session = False
             return build_response(session_attributes, build_speechlet_response(
                     card_title, speech_output, reprompt_text, should_end_session))
+    except:
+        return build_dialog_response("I am sorry. Can you repeat the location?", dialog_elicit_retrieve_location())
 
 
 def handle_session_end_request():
@@ -140,9 +150,10 @@ def handle_help_request():
     session_attributes = {}
     card_title = "Remembrall"
     speech_output = "Welcome to the Alexa Remembrall skill. " \
-                    "You can store information about items you handle " \
-                    "Or you can ask me for information about items already you stored"
-    reprompt_text = "Please ask me for information about items about u previously stored"
+                    "You can store information about items you handle by just telling what item and where you placed them" \
+                    "Or you can ask me for information about items already you stored by simply framing a where question" \
+                    "Or you can ask for the list of items at a particular location."
+    reprompt_text = "Please ask me for information about items about you previously stored or store new information"
     should_end_session = False
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
@@ -156,8 +167,8 @@ def handle_yes_intent():
     should_end_session = False
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
-
-
+        
+        
 def table_write(request, session):
     # items is false item is true
     bool = False
@@ -244,8 +255,8 @@ def dialog_elicit_slot_item(request):
                     }
                 }
             ]
-
-
+   
+    
 def dialog_elicit_slot_location(request):
     return [
                 {
@@ -270,6 +281,44 @@ def dialog_elicit_slot_location(request):
             ]
 
 
+def dialog_elicit_retrieve_item():
+    return [
+                {
+                    "type": "Dialog.ElicitSlot",
+                    "slotToElicit": "item",
+                    "updatedIntent": {
+                        "name": "RetrieveItemIntent",
+                        "confirmaitonStatus": "NONE",
+                        "slots":{
+                            "item":{
+                                "name":"item",
+                                "confirmaitonStatus":"NONE"
+                            }
+                        }
+                    }
+                }
+            ]
+
+
+def dialog_elicit_retrieve_location():
+    return [
+                {
+                    "type": "Dialog.ElicitSlot",
+                    "slotToElicit": "location",
+                    "updatedIntent": {
+                        "name": "RetrieveLocationIntent",
+                        "confirmaitonStatus": "NONE",
+                        "slots":{
+                            "location": {
+                                "name": "location",
+                                "confirmaitonStatus": "NONE"
+                            }
+                        }
+                    }
+                }
+            ]
+            
+            
 def build_response(session_attributes, speechlet_response):
     # returns the response json
     return {
